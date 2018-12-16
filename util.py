@@ -7,7 +7,7 @@ import os
 
 
 def get_clouds():
-    Nclass = 500
+    Nclass = 5000
     D = 2
 
     X1 = np.random.randn(Nclass, D) + np.array([0, -2])
@@ -24,7 +24,7 @@ def get_normalized_data():
     returns X, Y normalized,
     converts entries to np.float32
 
-    '''
+n    '''
     print("Reading in and transforming data...")
     data0 = pd.read_csv("gestures_muscle/0.csv").values
     data1 = pd.read_csv("gestures_muscle/1.csv").values
@@ -51,14 +51,13 @@ def y2indicator(Y):
     Y = Y.astype(np.int32)
     N = len(Y)
     K = len(set(Y))
-    print K
     Y_ind = np.zeros((N, K))
     for i in xrange(N):
         Y_ind[i, Y[i]] = 1
     return Y_ind
 
 
-def initialize_weight_log_reg(shape):
+def initialize_weight(shape):
     ''' takes in '''
     # weights are normalized to mean 1
     W1 = np.random.randn(shape[0], shape[1]) / np.sqrt(shape[0]+shape[1])

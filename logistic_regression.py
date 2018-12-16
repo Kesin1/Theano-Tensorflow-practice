@@ -10,7 +10,7 @@ import numpy as np
 import theano.tensor as T
 import theano
 import matplotlib.pyplot as plt
-from util import error_rate, y2indicator, initialize_weight_log_reg,\
+from util import error_rate, y2indicator, initialize_weight,\
     get_clouds, get_normalized_data
 from sklearn.utils import shuffle
 
@@ -33,7 +33,7 @@ class log_reg_model(object):
         X_test, Y_test = X[N_train:, :], Y[N_train:]
         Y_test_ind = y2indicator(Y_test)
 
-        W1_init, b1_init = initialize_weight_log_reg((D, K))
+        W1_init, b1_init = initialize_weight((D, K))
 
         X_th = T.matrix('X_th')  # will take in X values (train or test)
         T_th = T.matrix('T_th')  # will take in Y values
@@ -46,8 +46,8 @@ class log_reg_model(object):
         cost = -(T_th * T.log(pY)).sum() + reg*((W1*W1).sum() + (b1*b1).sum())
         predicitons = self.predict(pY)
 
-        W1_updated = W1 - T.grad(cost, W1)
-        b1_updated = b1 - T.grad(cost, b1)
+        W1_updated = W1 - lr*T.grad(cost, W1)
+        b1_updated = b1 - lr*T.grad(cost, b1)
 
         train_op = theano.function(inputs=[X_th, T_th], updates=[
                                    (W1, W1_updated), (b1, b1_updated)])
@@ -90,12 +90,12 @@ def main():
     # instantinate class
     # do class operations with the data (fit and print score)
 
-    X, Y = get_clouds()
+    X, Y = get_normalized_data()
     X, Y = shuffle(X, Y)
     model = log_reg_model()
     # choose batch size before passing to fit
 
-    model.fit(X, Y, batchsz=50, show_fig=True)
+    model.fit(X, Y, lr=0.001, max_iter=2000, batchsz=500, show_fig=True)
 
 
 if __name__ == '__main__':
