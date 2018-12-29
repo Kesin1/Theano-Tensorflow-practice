@@ -92,6 +92,7 @@ def main():
 
     X, Y = get_normalized_data()
     X, Y = shuffle(X, Y)
+
     model = log_reg_model()
     # choose batch size before passing to fit
 

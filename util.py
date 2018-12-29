@@ -43,6 +43,36 @@ n    '''
     return X, Y
 
 
+def get_data_facial(balance_ones=True):
+    '''
+    returns X, Y, values between 0 and 1,
+    if balance_ones=True, repeats X[Y==1] 9 times
+    converts entries to np.float32
+    '''
+    print("Reading in and transforming data...")
+    data = pd.read_csv("../gestures_muscle/fer2013.csv").values
+    data_Y = data[:, 0]
+    data_X = data[:, 1]
+
+    X = []
+    for i in xrange(data_X.shape[0]):
+        temp = data_X[i].split()
+        temp = [float(j) for j in temp]
+        X.append(temp)
+
+    X = np.array(X).astype(np.float)
+    Y = np.array(data_Y).astype(np.float)
+
+    if balance_ones:
+        X0, Y0 = X[Y != 1, :], Y[Y != 1]
+        X1 = X[Y == 1, :]
+        X1 = np.repeat(X1, 9, axis=0)
+        X = np.vstack((X0, X1))
+        Y = np.concatenate((Y0, [1]*len(X1)))
+
+    return X/255.0, Y
+
+
 def y2indicator(Y):
     '''
     return indicator matrix of type np.int32
