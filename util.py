@@ -24,7 +24,7 @@ def get_normalized_data():
     returns X, Y normalized,
     converts entries to np.float32
 
-n    '''
+    '''
     print("Reading in and transforming data...")
     data0 = pd.read_csv("gestures_muscle/0.csv").values
     data1 = pd.read_csv("gestures_muscle/1.csv").values
@@ -91,7 +91,7 @@ def initialize_weight(shape):
     ''' takes in '''
     # weights are normalized to mean 1
     W1 = np.random.randn(shape[0], shape[1]) / np.sqrt(shape[0]+shape[1])
-    b1 = np.random.randn(shape[1]) / np.sqrt(shape[1])
+    b1 = np.zeros(shape[1])
     return W1, b1
 
 
@@ -101,6 +101,15 @@ def error_rate(predicitons, Y):
     predicitons after argmax of lastlayer output
     '''
     return np.mean(predicitons != Y)
+
+
+def relu(Z):
+    return Z*(Z > 0)
+
+
+def softmax(A, W, b):
+    exp_Z = np.exp(A.dot(W) + b)
+    return exp_Z/(np.sum(exp_Z, axis=1, keepdims=True))
 
 
 def main():
