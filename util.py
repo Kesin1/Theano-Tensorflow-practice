@@ -87,11 +87,11 @@ def y2indicator(Y):
     return Y_ind
 
 
-def initialize_weight(shape):
+def initialize_weight(M1, M2):
     ''' takes in '''
     # weights are normalized to mean 1
-    W1 = np.random.randn(shape[0], shape[1]) / np.sqrt(shape[0]+shape[1])
-    b1 = np.zeros(shape[1])
+    W1 = np.random.randn(M1, M2) / np.sqrt(M1 + M2)
+    b1 = np.zeros(M2)
     return W1, b1
 
 
