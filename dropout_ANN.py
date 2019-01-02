@@ -2,6 +2,7 @@
 
 import theano.tensor as T
 import theano
+from theano.tensor.shared_randomstreams import RandomStreams
 import numpy as np
 import matplotlib.pyplot as plt
 from util import get_normalized_data, initialize_weight
@@ -24,12 +25,15 @@ class Hiddenlayer(object):
 
 
 class ANN_RMS_MOM(object):
-    def __init__(self, layer_sizes):
+    def __init__(self, layer_sizes, p_keep):
         self.layer_sizes = layer_sizes
+        self.p_keep = p_keep
 
     def fit(self, X, Y, lr=1e-2, reg=0., mu=0., decay=0.999, eps=1e-9, batchsz=100, epochs=150, show_fig=False, print_period=20):
         X = X.astype(np.float32)
         Y = Y.astype(np.int32)
+
+        self.rng = RandomStreams()
 
         N, D = X.shape
         K = len(set(Y))
@@ -58,7 +62,7 @@ class ANN_RMS_MOM(object):
         Xth = T.matrix('X')
         Yth = T.ivector('Y')    # this is necessary to be an int vector
 
-        pY = self.forward(Xth)
+        pY = self.forward_train(Xth)
         reg_cost = reg * T.mean([(p*p).sum() for p in self.params])
         cost = -T.mean(T.log(pY[T.arange(Yth.shape[0]), Yth])) + reg_cost
         prediction = T.argmax(pY, axis=1)
@@ -75,6 +79,11 @@ class ANN_RMS_MOM(object):
         train = theano.function(
             inputs=[Xth, Yth], outputs=cost, updates=updates)
         self.predict_op = theano.function(inputs=[Xth], outputs=prediction)
+
+        pY_test = self.forward(Xth)
+        prediction_test = T.argmax(pY_test, axis=1)
+        self.predict_test_op = theano.function(
+            inputs=[Xth], outputs=prediction_test)
 
         costs = []
         if batchsz == None:
@@ -101,14 +110,26 @@ class ANN_RMS_MOM(object):
             plt.plot(costs)
             plt.show()
 
+    def forward_train(self, X):
+        Z = X
+        count = 0
+        for layer in self.Hiddenlayers:
+            mask = self.rng.binomial(n=1, p=self.p_keep[count], size=Z.shape)
+            Z = layer.forward(Z*mask)
+            count += 1
+        return Z
+
     def forward(self, X):
         Z = X
         for layer in self.Hiddenlayers:
             Z = layer.forward(Z)
         return Z
 
-    def predict(self, X):
+    def predict_train(self, X):
         return self.predict_op(X)
+
+    def predict(self, X):
+        return self.predict_test_op(X)
 
     def score(self, X, Y):
         p = self.predict(X)
@@ -125,6 +146,6 @@ if __name__ == "__main__":
     Xtest, Ytest = X[Ntrain:, :], Y[Ntrain:]
 
     # implmenet cross_validation later
-    model = ANN_RMS_MOM([200, 50])
-    model.fit(Xtrain, Ytrain, reg=0., mu=0.9, decay=0.999, show_fig=True)
+    model = ANN_RMS_MOM([200, 50], [0.8, .5, .5])
+    model.fit(Xtrain, Ytrain, show_fig=True)
     print "Test score:", model.score(Xtest, Ytest)
