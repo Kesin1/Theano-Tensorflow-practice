@@ -1,4 +1,4 @@
-# Implementation of a ANN with RMSprop and Momentum
+# Implementation of a ANN with RMSprop and Momentum, dropout and batch Normalisation
 
 import theano.tensor as T
 import theano
@@ -33,7 +33,7 @@ class ANN_RMS_MOM(object):
         self.layer_sizes = layer_sizes
         self.p_keep = p_keep
 
-    def fit(self, X, Y, lr=1e-4, reg=0., mu=0.9, decay=0.9, eps=1e-9, batchsz=100, epochs=20, show_fig=False, train_perc=0.95, print_period=20, noise_variance_on_x=0, noise_variance_on_weights=0):
+    def fit(self, X, Y, lr=1e-4, mu=0.9, decay=0.9, eps=1e-9, batchsz=100, epochs=20, show_fig=False, train_perc=0.95, print_period=20, noise_variance_on_x=0, noise_variance_on_weights=0):
         X = X.astype(np.float32)
         Y = Y.astype(np.int32)
         X, Y = shuffle(X, Y)
@@ -73,8 +73,7 @@ class ANN_RMS_MOM(object):
         Yth = T.ivector('Y')    # this is necessary to be an int vector
 
         pY = self.forward_train(Xth)
-        # reg_cost = reg * T.mean([(p*p).sum() for p in self.params])
-        cost = -T.mean(T.log(pY[T.arange(Yth.shape[0]), Yth]))  # + reg_cost
+        cost = -T.mean(T.log(pY[T.arange(Yth.shape[0]), Yth]))
         grads = T.grad(cost, self.params)
 
         cache = [theano.shared(np.ones_like(p.get_value()))
@@ -101,9 +100,9 @@ class ANN_RMS_MOM(object):
         pY_predict = self.forward(Xth)
         cost_test = - \
             T.mean(
-                T.log(pY_predict[T.arange(Yth.shape[0]), Yth]))  # + reg_cost
+                T.log(pY_predict[T.arange(Yth.shape[0]), Yth]))
         prediction = self.predict(Xth, noise_variance_on_weights)
-        cost_score_op = theano.function(
+        self.cost_score_op = theano.function(
             inputs=[Xth, Yth], outputs=[cost_test, prediction])
 
         costs = []
@@ -119,7 +118,7 @@ class ANN_RMS_MOM(object):
                 train(Xbatch, Ybatch)
 
                 if j % print_period == 0:
-                    c, p = cost_score_op(Xvalid, Yvalid)
+                    c, p = self.cost_score_op(Xvalid, Yvalid)
                     costs.append(c)
                     print "i:", i, "j:", j, "nbatches:", nbatches, "cost %.3f:" % c, "score %.3f:" % np.mean(
                         p == Yvalid)
@@ -146,8 +145,10 @@ class ANN_RMS_MOM(object):
         return T.argmax(pY, axis=1)
 
     def score(self, X, Y):
-        p = self.predict(X)
-        return T.mean(p == Y)
+        X = X.astype(np.float32)
+        Y = Y.astype(np.int32)
+        c, p = self.cost_score_op(X, Y)
+        return np.mean(p == Y)
 
 
 if __name__ == "__main__":
@@ -156,5 +157,6 @@ if __name__ == "__main__":
     # implmenet cross_validation later
     model = ANN_RMS_MOM([500, 300], [0.8, 0.5, 0.5])
     model.fit(X, Y, show_fig=True)
-    model.fit(X, Y, noise_variance_on_x=0.01)
-    model.fit(X, Y, noise_variance_on_x=0.01, noise_variance_on_weights=0.01)
+    print model.score(X, Y)
+    # model.fit(X, Y, noise_variance_on_x=0.01)
+    # model.fit(X, Y, noise_variance_on_x=0.01, noise_variance_on_weights=0.01)
