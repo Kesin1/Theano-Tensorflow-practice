@@ -19,9 +19,13 @@ class Hiddenlayer(object):
         self.W = theano.shared(W_init, name="W%d" % hl_num)
         self.b = theano.shared(b_init, name="b%d" % hl_num)
         self.params = [self.W, self.b]
+        self.rng = RandomStreams()
 
-    def forward(self, Z):
-        return self.fun(Z.dot(self.W) + self.b)
+    def forward(self, Z, noise_variance_on_weights=0):
+        if noise_variance_on_weights == 0:
+            return self.fun(Z.dot(self.W) + self.b)
+        else:
+            return self.fun(Z.dot(self.W + self.rng.normal(size=self.W.shape, std=noise_variance_on_weights)) + self.b)
 
 
 class ANN_RMS_MOM(object):
@@ -29,7 +33,7 @@ class ANN_RMS_MOM(object):
         self.layer_sizes = layer_sizes
         self.p_keep = p_keep
 
-    def fit(self, X, Y, lr=1e-4, reg=0., mu=0.9, decay=0.9, eps=1e-9, batchsz=100, epochs=20, show_fig=False, train_perc=0.95, print_period=20):
+    def fit(self, X, Y, lr=1e-4, reg=0., mu=0.9, decay=0.9, eps=1e-9, batchsz=100, epochs=20, show_fig=False, train_perc=0.95, print_period=20, noise_variance_on_x=0, noise_variance_on_weights=0):
         X = X.astype(np.float32)
         Y = Y.astype(np.int32)
         X, Y = shuffle(X, Y)
@@ -38,8 +42,14 @@ class ANN_RMS_MOM(object):
         K = len(set(Y))
         Ntrain = int(N*train_perc)
 
-        Xtrain, Ytrain = X[:Ntrain, :], Y[:Ntrain]
-        Xvalid, Yvalid = X[Ntrain:, :], Y[Ntrain:]
+        if noise_variance_on_x == 0:
+            Xtrain, Ytrain = X[:Ntrain, :], Y[:Ntrain]
+            Xvalid, Yvalid = X[Ntrain:, :], Y[Ntrain:]
+        else:
+            Xtrain, Ytrain = X[:Ntrain, :] + \
+                np.random.normal(scale=noise_variance_on_x,
+                                 size=(Ntrain, D)), Y[:Ntrain]
+            Xvalid, Yvalid = X[Ntrain:, :], Y[Ntrain:]
 
         self.rng = RandomStreams()
 
@@ -92,7 +102,7 @@ class ANN_RMS_MOM(object):
         cost_test = - \
             T.mean(
                 T.log(pY_predict[T.arange(Yth.shape[0]), Yth]))  # + reg_cost
-        prediction = T.argmax(pY_predict, axis=1)
+        prediction = self.predict(Xth, noise_variance_on_weights)
         cost_score_op = theano.function(
             inputs=[Xth, Yth], outputs=[cost_test, prediction])
 
@@ -125,14 +135,14 @@ class ANN_RMS_MOM(object):
             Z = layer.forward(Z*mask)
         return Z
 
-    def forward(self, X):
+    def forward(self, X, noise_variance_on_weights=0):
         Z = X
         for layer, p_keep in zip(self.Hiddenlayers, self.p_keep):
-            Z = layer.forward(Z*p_keep)
+            Z = layer.forward(Z*p_keep, noise_variance_on_weights)
         return Z
 
-    def predict(self, X):
-        pY = self.forward(X)
+    def predict(self, X, noise_variance_on_weights=0):
+        pY = self.forward(X, noise_variance_on_weights)
         return T.argmax(pY, axis=1)
 
     def score(self, X, Y):
@@ -146,3 +156,5 @@ if __name__ == "__main__":
     # implmenet cross_validation later
     model = ANN_RMS_MOM([500, 300], [0.8, 0.5, 0.5])
     model.fit(X, Y, show_fig=True)
+    model.fit(X, Y, noise_variance_on_x=0.01)
+    model.fit(X, Y, noise_variance_on_x=0.01, noise_variance_on_weights=0.01)
