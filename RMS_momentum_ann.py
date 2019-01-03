@@ -4,7 +4,7 @@ import theano.tensor as T
 import theano
 import numpy as np
 import matplotlib.pyplot as plt
-from util import get_normalized_data, initialize_weight
+from util import get_normalized_data, initialize_weight, get_data_facial
 from sklearn.utils import shuffle
 
 
@@ -27,7 +27,7 @@ class ANN_RMS_MOM(object):
     def __init__(self, layer_sizes):
         self.layer_sizes = layer_sizes
 
-    def fit(self, X, Y, lr=1e-2, reg=0., mu=0., decay=0.999, eps=1e-9, batchsz=100, epochs=150, show_fig=False, print_period=20):
+    def fit(self, X, Y, lr=1e-4, reg=0., mu=0.9, decay=0.9, eps=1e-9, batchsz=100, epochs=20, show_fig=False, print_period=20):
         X = X.astype(np.float32)
         Y = Y.astype(np.int32)
 
@@ -83,8 +83,8 @@ class ANN_RMS_MOM(object):
         for i in xrange(epochs):
             X, Y = shuffle(X, Y)
             for j in xrange(nbatches):
-                Xbatch, Ybatch = X[j*nbatches: (
-                    j+1)*nbatches, :], Y[j*nbatches: (j+1)*nbatches]
+                Xbatch, Ybatch = X[j*batchsz: (
+                    j+1)*batchsz, :], Y[j*batchsz: (j+1)*batchsz]
                 c = train(Xbatch, Ybatch)
                 costs.append(c)
                 if j % print_period == 0:
@@ -125,6 +125,6 @@ if __name__ == "__main__":
     Xtest, Ytest = X[Ntrain:, :], Y[Ntrain:]
 
     # implmenet cross_validation later
-    model = ANN_RMS_MOM([200, 50])
-    model.fit(Xtrain, Ytrain, reg=0., mu=0.9, decay=0.999, show_fig=True)
+    model = ANN_RMS_MOM([500, 300])
+    model.fit(Xtrain, Ytrain, show_fig=True)
     print "Test score:", model.score(Xtest, Ytest)

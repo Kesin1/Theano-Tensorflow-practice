@@ -2,11 +2,11 @@
 
 import theano.tensor as T
 import theano
-from theano.tensor.shared_randomstreams import RandomStreams
 import numpy as np
 import matplotlib.pyplot as plt
-from util import get_normalized_data, initialize_weight
+from util import get_normalized_data, initialize_weight, get_data_facial
 from sklearn.utils import shuffle
+from theano.tensor.shared_randomstreams import RandomStreams
 
 
 class Hiddenlayer(object):
@@ -29,14 +29,19 @@ class ANN_RMS_MOM(object):
         self.layer_sizes = layer_sizes
         self.p_keep = p_keep
 
-    def fit(self, X, Y, lr=1e-2, reg=0., mu=0., decay=0.999, eps=1e-9, batchsz=100, epochs=150, show_fig=False, print_period=20):
+    def fit(self, X, Y, lr=1e-4, reg=0., mu=0.9, decay=0.9, eps=1e-9, batchsz=100, epochs=20, show_fig=False, train_perc=0.95, print_period=20):
         X = X.astype(np.float32)
         Y = Y.astype(np.int32)
-
-        self.rng = RandomStreams()
+        X, Y = shuffle(X, Y)
 
         N, D = X.shape
         K = len(set(Y))
+        Ntrain = int(N*train_perc)
+
+        Xtrain, Ytrain = X[:Ntrain, :], Y[:Ntrain]
+        Xvalid, Yvalid = X[Ntrain:, :], Y[Ntrain:]
+
+        self.rng = RandomStreams()
 
         # initialize_layers
         self.Hiddenlayers = []
@@ -54,98 +59,90 @@ class ANN_RMS_MOM(object):
         for layer in self.Hiddenlayers:
             self.params += layer.params
 
+        Xth = T.matrix('X')
+        Yth = T.ivector('Y')    # this is necessary to be an int vector
+
+        pY = self.forward_train(Xth)
+        # reg_cost = reg * T.mean([(p*p).sum() for p in self.params])
+        cost = -T.mean(T.log(pY[T.arange(Yth.shape[0]), Yth]))  # + reg_cost
+        grads = T.grad(cost, self.params)
+
         cache = [theano.shared(np.ones_like(p.get_value()))
                  for p in self.params]
         mom_vecs = [theano.shared(np.zeros_like(p.get_value()))
                     for p in self.params]
 
-        Xth = T.matrix('X')
-        Yth = T.ivector('Y')    # this is necessary to be an int vector
-
-        pY = self.forward_train(Xth)
-        reg_cost = reg * T.mean([(p*p).sum() for p in self.params])
-        cost = -T.mean(T.log(pY[T.arange(Yth.shape[0]), Yth])) + reg_cost
-        prediction = T.argmax(pY, axis=1)
-        grads = T.grad(cost, self.params)
+        new_cache = [decay * c + (1-decay)*g*g
+                     for c, g in zip(cache, grads)]
+        new_mom_vecs = [mu*v - lr*g/T.sqrt(new_c+eps)
+                        for v, new_c, g in zip(mom_vecs, new_cache, grads)]
 
         updates = [
-            (c, decay * c + (1-decay) * g**2) for c, g in zip(cache, grads)
+            (c, new_c) for c, new_c in zip(cache, new_cache)
         ] + [
-            (w, w + mu*v - lr*g / T.sqrt(c+eps)) for w, g, c, v in zip(self.params, grads, cache, mom_vecs)
+            (v, new_v) for v, new_v in zip(mom_vecs, new_mom_vecs)
         ] + [
-            (v, mu*v - lr*g/T.sqrt(c+eps)) for v, c, g in zip(mom_vecs, cache, grads)
+            (w, w + new_v) for w, new_v in zip(self.params, new_mom_vecs)
         ]
 
         train = theano.function(
-            inputs=[Xth, Yth], outputs=cost, updates=updates)
-        self.predict_op = theano.function(inputs=[Xth], outputs=prediction)
+            inputs=[Xth, Yth], updates=updates)
 
-        pY_test = self.forward(Xth)
-        prediction_test = T.argmax(pY_test, axis=1)
-        self.predict_test_op = theano.function(
-            inputs=[Xth], outputs=prediction_test)
+        pY_predict = self.forward(Xth)
+        cost_test = - \
+            T.mean(
+                T.log(pY_predict[T.arange(Yth.shape[0]), Yth]))  # + reg_cost
+        prediction = T.argmax(pY_predict, axis=1)
+        cost_score_op = theano.function(
+            inputs=[Xth, Yth], outputs=[cost_test, prediction])
 
         costs = []
         if batchsz == None:
-            batchsz = N
-        nbatches = N/batchsz
+            batchsz = Ntrain
+        nbatches = Ntrain/batchsz
         for i in xrange(epochs):
-            X, Y = shuffle(X, Y)
+            Xtrain, Ytrain = shuffle(Xtrain, Ytrain)
             for j in xrange(nbatches):
-                Xbatch, Ybatch = X[j*nbatches: (
-                    j+1)*nbatches, :], Y[j*nbatches: (j+1)*nbatches]
-                c = train(Xbatch, Ybatch)
-                costs.append(c)
+                Xbatch, Ybatch = Xtrain[j*batchsz:(
+                    j+1)*batchsz, :], Ytrain[j*batchsz: (j+1)*batchsz]
+
+                train(Xbatch, Ybatch)
+
                 if j % print_period == 0:
-                    score = self.score(X, Y)
-                    print "Iteration: %d, Train cost: %.3f, Train score: %.3f" % (
-                        i, c, score)
+                    c, p = cost_score_op(Xvalid, Yvalid)
+                    costs.append(c)
+                    print "i:", i, "j:", j, "nbatches:", nbatches, "cost %.3f:" % c, "score %.3f:" % np.mean(
+                        p == Yvalid)
 
-                if np.round(score, 2) == 1.:
-                    break
-
-            if np.round(score, 2) == 1.:
-                break
         if show_fig == True:
             plt.plot(costs)
             plt.show()
 
     def forward_train(self, X):
         Z = X
-        count = 0
-        for layer in self.Hiddenlayers:
-            mask = self.rng.binomial(n=1, p=self.p_keep[count], size=Z.shape)
+        for layer, p_keep in zip(self.Hiddenlayers, self.p_keep):
+            mask = self.rng.binomial(n=1, p=p_keep, size=Z.shape)
             Z = layer.forward(Z*mask)
-            count += 1
         return Z
 
     def forward(self, X):
         Z = X
-        for layer in self.Hiddenlayers:
-            Z = layer.forward(Z)
+        for layer, p_keep in zip(self.Hiddenlayers, self.p_keep):
+            Z = layer.forward(Z*p_keep)
         return Z
 
-    def predict_train(self, X):
-        return self.predict_op(X)
-
     def predict(self, X):
-        return self.predict_test_op(X)
+        pY = self.forward(X)
+        return T.argmax(pY, axis=1)
 
     def score(self, X, Y):
         p = self.predict(X)
-        return np.mean(p == Y)
+        return T.mean(p == Y)
 
 
 if __name__ == "__main__":
     X, Y = get_normalized_data()
-    X, Y = shuffle(X, Y)
-
-    N = len(X)
-    Ntrain = int(0.9 * N)
-    Xtrain, Ytrain = X[:Ntrain, :], Y[:Ntrain]
-    Xtest, Ytest = X[Ntrain:, :], Y[Ntrain:]
 
     # implmenet cross_validation later
-    model = ANN_RMS_MOM([200, 50], [0.8, .5, .5])
-    model.fit(Xtrain, Ytrain, show_fig=True)
-    print "Test score:", model.score(Xtest, Ytest)
+    model = ANN_RMS_MOM([500, 300], [0.8, 0.5, 0.5])
+    model.fit(X, Y, show_fig=True)

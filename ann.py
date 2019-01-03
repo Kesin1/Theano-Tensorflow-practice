@@ -1,9 +1,6 @@
 # implemenent ANN with theano
 # for multiclass problem of recognizing hand gesture by muscular acitivity
 
-# it works for simple multiclass problems like get_clouds but not for muscular
-# activity/ hand gestures_muscle
-
 # theano implemenented functions that we use here are softmax, sigmoid, relu
 
 import numpy as np
