@@ -31,8 +31,8 @@ class ANN(object):
         X_test, Y_test = X[N_train:, :], Y[N_train:]
         Y_test_ind = y2indicator(Y_test)
 
-        W1_init, b1_init = initialize_weight((D, self.M))
-        W2_init, b2_init = initialize_weight((self.M, K))
+        W1_init, b1_init = initialize_weight(D, self.M)
+        W2_init, b2_init = initialize_weight(self.M, K)
 
         X_th = T.matrix('X_th')  # will take in X values (train or test)
         T_th = T.matrix('T_th')  # will take in Y values
