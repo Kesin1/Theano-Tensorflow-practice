@@ -16,17 +16,52 @@ class hiddenlayer(object):
         self.M2 = M2
         self.fun = fun
         self.last_layer = last_layer
-        W = np.random.randn(M1, M2) / np.sqrt(M1)
-        b = np.zeros(M2)
-        self.W = tf.Variable(W.astype(np.float32), name="W%d" % layer_num)
-        self.b = tf.Variable(b.astype(np.float32), name="b%d" % layer_num)
-        self.params = [self.W, self.b]
 
-    def forward(self, X):
+        if last_layer:
+            W = np.random.randn(M1, M2) / np.sqrt(M1)
+            b = np.zeros(M2)
+            self.W = tf.Variable(W.astype(np.float32), name="W%d" % layer_num)
+            self.b = tf.Variable(b.astype(np.float32), name="b%d" % layer_num)
+            self.params = [self.W, self.b]
+
+        else:
+            W = np.random.randn(M1, M2) / np.sqrt(M1)
+            self.W = tf.Variable(W.astype(np.float32), name="W%d" % layer_num)
+            self.gamma = tf.Variable(np.ones(self.M2).astype(np.float32),
+                                     name="gamma%d" % layer_num)
+            self.beta = tf.Variable(np.zeros(self.M2).astype(np.float32),
+                                    name="beta%d" % layer_num)
+            self.running_mean = tf.Variable(
+                np.zeros(self.M2).astype(np.float32), name="mean%d" % layer_num, trainable=False)
+            self.running_variance = tf.Variable(
+                np.ones(self.M2).astype(np.float32), name="variance%d" % layer_num, trainable=False)
+            self.params = [self.W, self.gamma, self.beta,
+                           self.running_mean, self.running_variance]
+
+    def forward(self, X, train=True):
         if self.last_layer:
             return tf.matmul(X, self.W) + self.b
         else:
-            return self.fun(tf.matmul(X, self.W) + self.b)
+            if train:
+                tfZ = tf.matmul(X, self.W)
+                batch_mean, batch_variance = tf.nn.moments(tfZ, [0])
+                update_rn_mean = tf.assign(
+                    self.running_mean,
+                    0.9 * self.running_mean + (1-0.9) * batch_mean
+                )
+                update_rn_var = tf.assign(
+                    self.running_variance,
+                    0.9 * self.running_variance + (1-0.9) * batch_variance
+                )
+                with tf.control_dependencies([update_rn_mean, update_rn_var]):
+                    tfZ = tf.nn.batch_normalization(
+                        tfZ, batch_mean, batch_variance, self.beta, self.gamma, 10e-4)
+                return self.fun(tfZ)
+            else:
+                tfZ = tf.matmul(X, self.W)
+                tfZ = tf.nn.batch_normalization(
+                    tfZ, self.running_mean, self.running_variance, self.beta, self.gamma, 10e-9)
+                return self.fun(tfZ)
 
 
 class LogisticRegression(object):
@@ -34,7 +69,7 @@ class LogisticRegression(object):
         self.layer_sizes = layer_sizes
         self.dropout_rates = p_keep
 
-    def fit(self, X, Y, lr=1e-4, reg=1-3, decay=0.9, momenentum=0., train_perc=0.9, eps=1e-9, batchsz=100, epochs=20, print_per=20, show_fig=False):
+    def fit(self, X, Y, lr=1e-2, reg=1-3, decay=0.9, momentum=0., train_perc=0.9, eps=1e-9, batchsz=100, epochs=20, print_per=20, show_fig=False):
         X = X.astype(np.float32)
         Y = Y.astype(np.int32)
         X, Y = shuffle(X, Y)
@@ -64,15 +99,16 @@ class LogisticRegression(object):
 
         self.tfX = tf.placeholder(tf.float32, name='tfX')
         tfT = tf.placeholder(tf.int32, name='tfT')
-        Yish = self.forward(self.tfX)
+        Yish = self.forward(self.tfX, train=True)
         cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(
             logits=Yish,
             labels=tfT))
 
-        train_op = tf.train.RMSPropOptimizer(
-            lr, decay).minimize(cost)
+        train_op = tf.train.MomentumOptimizer(
+            lr, momentum=0.9, use_nesterov=True).minimize(cost)
 
-        self.predict_op = tf.argmax(tf.nn.softmax(Yish), axis=1)
+        Yish_test = self.forward(self.tfX, train=False)
+        self.predict_op = tf.argmax(tf.nn.softmax(Yish_test), axis=1)
 
         costs = []
         init = tf.global_variables_initializer()
@@ -106,11 +142,10 @@ class LogisticRegression(object):
             plt.plot(costs)
             plt.show()
 
-    def forward(self, tfX):
+    def forward(self, tfX, train=True):
         tfZ = tfX
         for layer, rate in zip(self.hiddenlayers, self.dropout_rates):
-            tf.nn.dropout(tfZ, rate)
-            tfZ = layer.forward(tfZ)
+            tfZ = layer.forward(tfZ, train)
         return tfZ
 
     def predict(self, X):
