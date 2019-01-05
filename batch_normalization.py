@@ -42,16 +42,15 @@ class HiddenlayerBatch(object):
         self.mom = mom
 
         # params
-        W_init, b_init = initialize_weight(M1, M2)
+        W_init, _ = initialize_weight(M1, M2)
         self.W = theano.shared(W_init, name="W%d" % hl_num)
-        self.b = theano.shared(b_init, name="b%d" % hl_num)
 
         # gamma and beta
         gamma_init = np.random.randn(self.M1)
         beta_init = np.zeros(self.M1)
         self.gamma = theano.shared(gamma_init, name="gamma%d" % hl_num)
         self.beta = theano.shared(beta_init, name="beta%d" % hl_num)
-        self.params = [self.W, self.b, self.gamma, self.beta]
+        self.params = [self.W, self.gamma, self.beta]
 
         self.loc = theano.shared(np.zeros(self.M1), borrow=True)
         self.var = theano.shared(np.zeros(self.M1), borrow=True)
@@ -69,15 +68,15 @@ class HiddenlayerBatch(object):
 
                 Z = (Z-now_loc)/np.sqrt(now_var + 10e-9)
                 Z = Z*self.gamma + self.beta
-                return self.fun(Z.dot(self.W) + self.b)
+                return self.fun(Z.dot(self.W))
             else:
                 Z = (Z-self.loc)/T.sqrt(self.var + 10e-9)
                 Z = Z*self.gamma + self.beta
-                return self.fun(Z.dot(self.W) + self.b)
+                return self.fun(Z.dot(self.W))
 
         else:
             Z = Z*self.gamma + self.beta
-            return self.fun(Z.dot(self.W + self.rng.normal(size=self.W.shape, std=noise_variance_on_weights)) + self.b)
+            return self.fun(Z.dot(self.W + self.rng.normal(size=self.W.shape, std=noise_variance_on_weights)))
 
 
 class ANN_RMS_MOM(object):
