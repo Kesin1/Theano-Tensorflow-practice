@@ -186,10 +186,10 @@ class CNN():
                     # print_layer_theano(X_valid[:2, :, :, :])
 
         if show_fig == True:
-            plt.plot(error, title="Error")
+            plt.plot(error)
             plt.title("error")
             plt.show()
-            plt.plot(cost, title="Cost")
+            plt.plot(cost)
             plt.title("cost")
             plt.show()
 
