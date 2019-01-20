@@ -229,8 +229,8 @@ class CNN():
             n = 0
             m = 0
             anker = 0
-            for i in range(self.input_channels):
-                for j in range(self.output_channels):
+            for i in range(layer.input_channels):
+                for j in range(layer.output_channels):
                     m = anker
                     filt = filter_[i, j]
                     grid[n:n+layer.filter_rows, m:m +
