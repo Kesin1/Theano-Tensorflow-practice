@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-
+import os
 from datetime import datetime
 from scipy.signal import convolve2d
 from scipy.io import loadmat
@@ -141,7 +141,7 @@ def main():
     # we'll use this to calculate the error rate
     predict_op = tf.argmax(Yish, 1)
 
-        t0 = datetime.now()
+    t0 = datetime.now()
     LL = []
     W1_val = None
     W2_val = None
