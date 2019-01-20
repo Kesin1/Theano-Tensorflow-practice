@@ -232,7 +232,7 @@ class CNN():
             for i in range(layer.input_channels):
                 for j in range(layer.output_channels):
                     m = anker
-                    filt = filter_[i, j]
+                    filt = filter_[j, i]
                     grid[n:n+layer.filter_rows, m:m +
                          layer.filter_columns] = filt
                     n += layer.filter_rows
@@ -269,12 +269,14 @@ def main():
 
     model = CNN(output_channels, filter_shapes, hidden_layers_sizes)
     t0 = datetime.now()
-    model.fit(X_train, Y_train, batchsz=500)
-    print "Time to fit the model %.4f" % (datetime.now() - t0)
+    model.fit(X_train, Y_train, batchsz=250)
+    print "Time to fit the model"
+    print (datetime.now() - t0)
 
     t0 = datetime.now()
     score = model.score(X_test, Y_test)
-    print "Time to test the model %.4f" % (datetime.now() - t0)
+    print "Time to test the model"
+    print (datetime.now() - t0)
     print "Score: %.2f" % score
 
 
