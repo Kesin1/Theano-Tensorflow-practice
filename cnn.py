@@ -220,7 +220,7 @@ class CNN():
         # layer 2 (50, 20, 5, 5)
         count = 1
         for layer in self.conv_layers:
-            filter_ = layer.filter.get_value()
+            filter_ = layer.filter_.get_value()
             num_of_rows = int(
                 np.sqrt(layer.output_channels * layer.input_channels)) + 1
             grid = np.zeros((num_of_rows * layer.filter_rows,
