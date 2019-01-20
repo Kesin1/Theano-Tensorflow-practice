@@ -12,6 +12,19 @@ def error_rate(p, t):
     return np.mean(p != t)
 
 
+def get_data():
+    if not os.path.exists('../Tensorflow_and_Theano/large_files/train_32x32.mat'):
+        print('Looking for ../large_files/train_32x32.mat')
+        print('You have not downloaded the data and/or not placed the files in the correct location.')
+        print('Please get the data from: http://ufldl.stanford.edu/housenumbers')
+        print('Place train_32x32.mat and test_32x32.mat in the folder large_files adjacent to the class folder')
+        exit()
+
+    train = loadmat('../Tensorflow_and_Theano/large_files/train_32x32.mat')
+    test = loadmat('../Tensorflow_and_Theano/large_files/test_32x32.mat')
+    return train, test
+
+
 def convpool(X, W, b):
     conv_out = tf.nn.conv2d(X, W, strides=[1, 1, 1, 1], padding="SAME")
     conv_out = tf.nn.bias_add(conv_out, b)
@@ -114,3 +127,97 @@ def main():
     Z2r = tf.reshape(Z2, [Z2_shape[0], np.prod(Z2_shape[1:])])
     Z3 = tf.nn.relu(tf.matmul(Z2r, W3) + b3)
     Yish = tf.matmul(Z3, W4) + b4
+
+    cost = tf.reduce_sum(
+        tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits=Yish,
+            labels=T
+        )
+    )
+
+    train_op = tf.train.RMSPropOptimizer(
+        0.0001, decay=0.99, momentum=0.9).minimize(cost)
+
+    # we'll use this to calculate the error rate
+    predict_op = tf.argmax(Yish, 1)
+
+        t0 = datetime.now()
+    LL = []
+    W1_val = None
+    W2_val = None
+    init = tf.global_variables_initializer()
+    with tf.Session() as session:
+        session.run(init)
+
+        for i in range(max_iter):
+            for j in range(n_batches):
+                Xbatch = Xtrain[j*batch_sz:(j*batch_sz + batch_sz), ]
+                Ybatch = Ytrain[j*batch_sz:(j*batch_sz + batch_sz), ]
+
+                if len(Xbatch) == batch_sz:
+                    session.run(train_op, feed_dict={X: Xbatch, T: Ybatch})
+                    if j % print_period == 0:
+                        # due to RAM limitations we need to have a fixed size input
+                        # so as a result, we have this ugly total cost and prediction computation
+                        test_cost = 0
+                        prediction = np.zeros(len(Xtest))
+                        for k in range(len(Xtest) // batch_sz):
+                            Xtestbatch = Xtest[k *
+                                               batch_sz:(k*batch_sz + batch_sz), ]
+                            Ytestbatch = Ytest[k *
+                                               batch_sz:(k*batch_sz + batch_sz), ]
+                            test_cost += session.run(cost,
+                                                     feed_dict={X: Xtestbatch, T: Ytestbatch})
+                            prediction[k*batch_sz:(k*batch_sz + batch_sz)] = session.run(
+                                predict_op, feed_dict={X: Xtestbatch})
+                        err = error_rate(prediction, Ytest)
+                        print("Cost / err at iteration i=%d, j=%d: %.3f / %.3f" %
+                              (i, j, test_cost, err))
+                        LL.append(test_cost)
+
+        W1_val = W1.eval()
+        W2_val = W2.eval()
+    print("Elapsed time:", (datetime.now() - t0))
+    plt.plot(LL)
+    plt.show()
+
+    W1_val = W1_val.transpose(3, 2, 0, 1)
+    W2_val = W2_val.transpose(3, 2, 0, 1)
+
+    # visualize W1 (20, 3, 5, 5)
+    # W1_val = W1.get_value()
+    grid = np.zeros((8*5, 8*5))
+    m = 0
+    n = 0
+    for i in range(20):
+        for j in range(3):
+            filt = W1_val[i, j]
+            grid[m*5:(m+1)*5, n*5:(n+1)*5] = filt
+            m += 1
+            if m >= 8:
+                m = 0
+                n += 1
+    plt.imshow(grid, cmap='gray')
+    plt.title("W1")
+    plt.show()
+
+    # visualize W2 (50, 20, 5, 5)
+    # W2_val = W2.get_value()
+    grid = np.zeros((32*5, 32*5))
+    m = 0
+    n = 0
+    for i in range(50):
+        for j in range(20):
+            filt = W2_val[i, j]
+            grid[m*5:(m+1)*5, n*5:(n+1)*5] = filt
+            m += 1
+            if m >= 32:
+                m = 0
+                n += 1
+    plt.imshow(grid, cmap='gray')
+    plt.title("W2")
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()
