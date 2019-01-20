@@ -95,7 +95,7 @@ class CNN():
         self.filter_shapes = filter_shapes
         self.hidden_layers_sizes = hidden_layers_sizes
 
-    def fit(self, X, Y, lr=1e-2, reg=1e-2, epochs=6, batchsz=None, print_period=10, show_fig=True, show_filter=True):
+    def fit(self, X, Y, lr=1e-2, reg=1e-2, epochs=1, batchsz=None, print_period=10, show_fig=True, show_filter=True):
         '''
         Takes in the input in shape (num_of_samples, color_channel, width, height)
         '''
@@ -187,10 +187,10 @@ class CNN():
 
         if show_fig == True:
             plt.plot(error, title="Error")
-            plt.legend()
+            plt.title("error")
             plt.show()
             plt.plot(cost, title="Cost")
-            plt.legend()
+            plt.title("cost")
             plt.show()
 
         if show_filter == True:
